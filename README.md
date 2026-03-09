@@ -1,22 +1,36 @@
-# Enterprise Sale OS
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Project Summary
-Enterprise Sale OS is a reusable sell-side M&A (Mergers & Acquisitions) operating system. It serves as a definitive deal control center, allowing sellers to manage the full lifecycle of a company sale from preparation to closing within one unified platform.
+## Getting Started
 
-## Current Project Status
-**Phase: Documentation & Baseline Alignment**
-The project is currently in the initial documentation and architecture baseline phase. 
-- **Not Started:** No code generation, UI scaffolding, or database migrations have been executed.
-- **Next Step:** The immediate next step following documentation approval is the creation of the *MVP Implementation Plan*.
+First, run the development server:
 
-## Phase 1 Definition
-Phase 1 (MVP) is explicitly scoped as a **Seller Operating System** for managing a single live deal. It is an internal command-and-control center for the seller, not a buyer-facing portal or multi-tenant enterprise suite. While architected from day one for future multi-user and multi-deal expansion through role-based permissions, Phase 1 focuses purely on giving the seller visibility, control, and operational relief.
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-## Source of Truth Documentation
-The following documents represent the persistent project baseline:
-- `docs/MISSION.md` - Primary product mission and guiding constraints.
-- `docs/PRODUCT_SPEC.md` - L6 functional specification and user flows.
-- `docs/SYSTEM_ARCHITECTURE.md` - Technical baseline, data domains, and security model.
-- `docs/DOMAIN_MODEL.md` - Canonical entity structure defining MVP vs. future scope.
-- `docs/MVP_SCOPE.md` - Precise phase boundaries and acceptance criteria.
-- `docs/ROADMAP.md` - Phased evolution strategy from Phase 1 through Phase 3.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
