@@ -26,6 +26,9 @@ export default async function ProtectedLayout({
             <a href="/deal" className="text-gray-600 hover:text-blue-600 transition-colors">Сделка</a>
             <a href="/buyers" className="text-gray-600 hover:text-blue-600 transition-colors">Покупатели</a>
             <a href="/pipeline" className="text-gray-600 hover:text-blue-600 transition-colors">Воронка</a>
+            <a href="/documents" className="text-gray-600 hover:text-blue-600 transition-colors">Документы</a>
+            <a href="/communications" className="text-gray-600 hover:text-blue-600 transition-colors">История коммуникаций</a>
+            <a href="/tasks" className="text-gray-600 hover:text-blue-600 transition-colors">Задачи</a>
           </nav>
           <div className="flex items-center">
             <form action={async () => {
