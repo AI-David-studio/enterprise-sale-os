@@ -59,10 +59,19 @@ export default async function DocumentsPage() {
                 </td>
                 <td className="px-6 py-4 text-gray-500">{doc.category || 'Без категории'}</td>
                 <td className="px-6 py-4 text-gray-500">{new Date(doc.created_at).toLocaleDateString('ru-RU')}</td>
-                <td className="px-6 py-4 text-sm">
+                <td className="px-6 py-4 text-sm flex gap-3">
                   <button disabled className="font-medium text-indigo-600 hover:text-indigo-900 opacity-50 cursor-not-allowed">
                     Скачать
                   </button>
+                  <form action={async () => {
+                    'use server'
+                    const { requestAISummarization } = await import('@/actions/ai')
+                    await requestAISummarization(doc.deal_id, doc.id)
+                  }}>
+                    <button type="submit" className="font-medium text-purple-600 hover:text-purple-900">
+                      Сгенерировать резюме
+                    </button>
+                  </form>
                 </td>
               </tr>
             ))}
