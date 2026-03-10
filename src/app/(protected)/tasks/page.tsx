@@ -47,6 +47,7 @@ export default async function TasksPage() {
                     type="checkbox"
                     checked={task.status === 'completed'}
                     disabled
+                    title="Статус задачи"
                     className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-not-allowed"
                   />
                 </div>

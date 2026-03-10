@@ -23,6 +23,7 @@ export default async function ProtectedLayout({
             <a href="/dashboard">Enterprise Sale OS</a>
           </div>
           <nav className="flex items-center gap-6 text-sm font-medium flex-1">
+            <a href="/dashboard" className="text-gray-600 hover:text-blue-600 transition-colors font-bold text-blue-800">Обзор</a>
             <a href="/deal" className="text-gray-600 hover:text-blue-600 transition-colors">Сделка</a>
             <a href="/buyers" className="text-gray-600 hover:text-blue-600 transition-colors">Покупатели</a>
             <a href="/pipeline" className="text-gray-600 hover:text-blue-600 transition-colors">Воронка</a>
