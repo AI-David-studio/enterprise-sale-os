@@ -7,14 +7,7 @@ create table public.organizations (
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 alter table public.organizations enable row level security;
-create policy "Organizations are viewable by assigned users" on public.organizations
-  for select using (
-    exists (
-      select 1 from public.users
-      where users.organization_id = organizations.id
-      and users.id = auth.uid()
-    )
-  );
+
 
 -- Users (Profiles)
 create table public.users (
@@ -33,6 +26,15 @@ create policy "Users can view their own profile and people in their organization
       select 1 from public.users as viewer
       where viewer.id = auth.uid()
       and viewer.organization_id = users.organization_id
+    )
+  );
+
+create policy "Organizations are viewable by assigned users" on public.organizations
+  for select using (
+    exists (
+      select 1 from public.users
+      where users.organization_id = organizations.id
+      and users.id = auth.uid()
     )
   );
 
