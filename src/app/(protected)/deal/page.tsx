@@ -1,5 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { getUserDealRole } from '@/utils/roles'
+import { InviteSection } from './invite-section'
 
 export default async function DealPage() {
   const supabase = await createClient()
@@ -18,13 +20,24 @@ export default async function DealPage() {
     .eq('id', user.id)
     .single()
 
-  const { data: deals, error } = await supabase
+  const { data: deals } = await supabase
     .from('deals')
     .select('id, name, description, target_industry')
     .eq('organization_id', profile?.organization_id)
     .limit(1)
 
   const activeDeal = deals?.[0]
+
+  // Resolve user role for invite authority check
+  let isLeadAdvisor = false
+  if (activeDeal?.id) {
+    try {
+      const role = await getUserDealRole(user.id, activeDeal.id)
+      isLeadAdvisor = role === 'lead_advisor'
+    } catch {
+      // Role check failed — hide invite section safely
+    }
+  }
 
   return (
     <div className="max-w-4xl mx-auto py-8">
@@ -78,6 +91,11 @@ export default async function DealPage() {
           </button>
         </div>
       </form>
+
+      {/* Invite section — visible only to lead_advisor */}
+      {isLeadAdvisor && activeDeal?.id && (
+        <InviteSection dealId={activeDeal.id} />
+      )}
     </div>
   )
 }
