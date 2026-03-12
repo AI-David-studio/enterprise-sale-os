@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
-import { getCurrentUserActiveDealRole } from '@/utils/roles'
+import { getCurrentUserActiveDealContext } from '@/utils/roles'
 
 export default async function TasksPage() {
   const supabase = await createClient()
@@ -12,25 +12,22 @@ export default async function TasksPage() {
     return redirect('/login')
   }
 
-  // Stage 7C: viewer cannot access tasks
-  const roleName = await getCurrentUserActiveDealRole(user.id)
-  if (roleName === 'viewer') {
+  // Stage 7C: only lead_advisor and advisor can access tasks (fail-closed)
+  const ctx = await getCurrentUserActiveDealContext(user.id)
+  if (ctx?.roleName !== 'lead_advisor' && ctx?.roleName !== 'advisor') {
     return redirect('/dashboard')
   }
 
-  // Get active deal
-  const { data: deals } = await supabase.from('deals').select('id').limit(1)
-  const activeDealId = deals?.[0]?.id
+  // Use resolved context.dealId for data query
+  const activeDealId = ctx.dealId
 
   let tasks: any[] = []
-  if (activeDealId) {
-    const { data } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('deal_id', activeDealId)
-      .order('created_at', { ascending: false })
-    tasks = data || []
-  }
+  const { data } = await supabase
+    .from('tasks')
+    .select('*')
+    .eq('deal_id', activeDealId)
+    .order('created_at', { ascending: false })
+  tasks = data || []
 
   return (
     <div className="max-w-4xl mx-auto py-8">

@@ -2,6 +2,20 @@ import 'server-only'
 
 import { createAdminClient } from '@/utils/supabase/admin'
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface ActiveDealContext {
+  organizationId: string
+  dealId: string
+  roleName: string | null
+}
+
+// ---------------------------------------------------------------------------
+// Core helpers
+// ---------------------------------------------------------------------------
+
 /**
  * Resolves the current user's deal role name for a specific deal.
  * Returns the role name (e.g. 'lead_advisor', 'advisor', 'viewer') or null.
@@ -72,17 +86,21 @@ export async function getRoleIdByName(
   return data?.id ?? null
 }
 
+// ---------------------------------------------------------------------------
+// Composite context helpers (for layout + page guards)
+// ---------------------------------------------------------------------------
+
 /**
- * Resolves the current user's role for their organization's active deal.
- * Returns the role name (e.g. 'lead_advisor', 'advisor', 'viewer') or null
- * if the user has no profile, no org deal, or no membership.
+ * Resolves the current user's full active-deal context:
+ * organization, deal, and role — all in one call.
  *
+ * Returns null if user has no profile, no org, or no active deal.
  * Does NOT throw — returns null on any failure and logs the error.
  * Safe for use in layout/guards where crashes must be avoided.
  */
-export async function getCurrentUserActiveDealRole(
+export async function getCurrentUserActiveDealContext(
   userId: string
-): Promise<string | null> {
+): Promise<ActiveDealContext | null> {
   try {
     const admin = createAdminClient()
 
@@ -94,7 +112,7 @@ export async function getCurrentUserActiveDealRole(
       .maybeSingle()
 
     if (profileError) {
-      console.error('getCurrentUserActiveDealRole: profile lookup failed', profileError)
+      console.error('getCurrentUserActiveDealContext: profile lookup failed', profileError)
       return null
     }
     if (!profile?.organization_id) return null
@@ -108,16 +126,38 @@ export async function getCurrentUserActiveDealRole(
       .maybeSingle()
 
     if (dealError) {
-      console.error('getCurrentUserActiveDealRole: deal lookup failed', dealError)
+      console.error('getCurrentUserActiveDealContext: deal lookup failed', dealError)
       return null
     }
     if (!deal?.id) return null
 
     // 3. Resolve membership role
-    return await getUserDealRole(userId, deal.id)
+    let roleName: string | null = null
+    try {
+      roleName = await getUserDealRole(userId, deal.id)
+    } catch {
+      // getUserDealRole throws on DB errors — catch here for safety
+      console.error('getCurrentUserActiveDealContext: role resolution threw for user', userId)
+    }
+
+    return {
+      organizationId: profile.organization_id,
+      dealId: deal.id,
+      roleName,
+    }
   } catch (err) {
-    console.error('getCurrentUserActiveDealRole: unexpected error', err)
+    console.error('getCurrentUserActiveDealContext: unexpected error', err)
     return null
   }
 }
 
+/**
+ * Convenience wrapper: returns just the role name from active deal context.
+ * Returns null on any failure. Does NOT throw.
+ */
+export async function getCurrentUserActiveDealRole(
+  userId: string
+): Promise<string | null> {
+  const ctx = await getCurrentUserActiveDealContext(userId)
+  return ctx?.roleName ?? null
+}

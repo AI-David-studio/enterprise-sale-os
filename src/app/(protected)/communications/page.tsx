@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
-import { getCurrentUserActiveDealRole } from '@/utils/roles'
+import { getCurrentUserActiveDealContext } from '@/utils/roles'
 
 export default async function CommunicationsPage() {
   const supabase = await createClient()
@@ -12,26 +12,23 @@ export default async function CommunicationsPage() {
     return redirect('/login')
   }
 
-  // Stage 7C: viewer cannot access communications
-  const roleName = await getCurrentUserActiveDealRole(user.id)
-  if (roleName === 'viewer') {
+  // Stage 7C: only lead_advisor and advisor can access communications (fail-closed)
+  const ctx = await getCurrentUserActiveDealContext(user.id)
+  if (ctx?.roleName !== 'lead_advisor' && ctx?.roleName !== 'advisor') {
     return redirect('/dashboard')
   }
 
-  // Get active deal
-  const { data: deals } = await supabase.from('deals').select('id').limit(1)
-  const activeDealId = deals?.[0]?.id
+  // Use resolved context.dealId for data query
+  const activeDealId = ctx.dealId
 
   let communications: any[] = []
-  if (activeDealId) {
-    // Get all communications for buyers in this deal
-    const { data } = await supabase
-      .from('communications')
-      .select('*, buyers!inner(name)')
-      .eq('buyers.deal_id', activeDealId)
-      .order('date', { ascending: false })
-    communications = data || []
-  }
+  // Get all communications for buyers in this deal
+  const { data } = await supabase
+    .from('communications')
+    .select('*, buyers!inner(name)')
+    .eq('buyers.deal_id', activeDealId)
+    .order('date', { ascending: false })
+  communications = data || []
 
   return (
     <div className="max-w-4xl mx-auto py-8">

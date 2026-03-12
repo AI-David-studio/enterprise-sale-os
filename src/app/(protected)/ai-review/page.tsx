@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
-import { getCurrentUserActiveDealRole } from '@/utils/roles'
+import { getCurrentUserActiveDealContext } from '@/utils/roles'
 
 export default async function AIReviewPage() {
   const supabase = await createClient()
@@ -12,27 +12,24 @@ export default async function AIReviewPage() {
     return redirect('/login')
   }
 
-  // Stage 7C: only lead_advisor can access AI review
-  const roleName = await getCurrentUserActiveDealRole(user.id)
-  if (roleName === 'advisor' || roleName === 'viewer') {
+  // Stage 7C: only lead_advisor can access AI review (fail-closed)
+  const ctx = await getCurrentUserActiveDealContext(user.id)
+  if (ctx?.roleName !== 'lead_advisor') {
     return redirect('/dashboard')
   }
 
-  // Get active deal
-  const { data: deals } = await supabase.from('deals').select('id').limit(1)
-  const activeDealId = deals?.[0]?.id
+  // Use resolved context.dealId for data query
+  const activeDealId = ctx.dealId
 
   let outputs: any[] = []
-  if (activeDealId) {
-    // Fetch pending AI outputs
-    const { data } = await supabase
-      .from('ai_outputs')
-      .select('*, ai_jobs(*)')
-      .eq('deal_id', activeDealId)
-      .eq('status', 'pending_review')
-      .order('created_at', { ascending: false })
-    outputs = data || []
-  }
+  // Fetch pending AI outputs for the active deal
+  const { data } = await supabase
+    .from('ai_outputs')
+    .select('*, ai_jobs(*)')
+    .eq('deal_id', activeDealId)
+    .eq('status', 'pending_review')
+    .order('created_at', { ascending: false })
+  outputs = data || []
 
   return (
     <div className="max-w-6xl mx-auto py-8">

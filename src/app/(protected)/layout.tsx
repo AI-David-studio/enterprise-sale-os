@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
-import { getCurrentUserActiveDealRole } from '@/utils/roles'
+import { getCurrentUserActiveDealContext } from '@/utils/roles'
 
 export default async function ProtectedLayout({
   children,
@@ -16,25 +16,21 @@ export default async function ProtectedLayout({
     return redirect('/login')
   }
 
-  // Resolve current user's deal role for nav visibility
+  // Resolve current user's deal context for nav visibility
   let roleName: string | null = null
   try {
-    roleName = await getCurrentUserActiveDealRole(user.id)
+    const ctx = await getCurrentUserActiveDealContext(user.id)
+    roleName = ctx?.roleName ?? null
   } catch {
-    // Role resolution failed — fail closed for restricted items, but don't crash layout
+    // Role resolution failed — restricted items stay hidden (fail-closed)
     console.error('ProtectedLayout: role resolution failed for user', user.id)
   }
 
-  // Nav visibility rules per Stage 7 permission matrix
-  // lead_advisor (or null/unknown): show everything (fail-open for seller-first MVP)
-  // advisor: hide ai-review
-  // viewer: hide ai-review, communications, tasks
-  const isViewer = roleName === 'viewer'
-  const isAdvisor = roleName === 'advisor'
-
-  const showAiReview = !isViewer && !isAdvisor
-  const showCommunications = !isViewer
-  const showTasks = !isViewer
+  // Nav visibility: explicit allowlists (fail-closed)
+  // null/unknown role = restricted items hidden
+  const showAiReview = roleName === 'lead_advisor'
+  const showCommunications = roleName === 'lead_advisor' || roleName === 'advisor'
+  const showTasks = roleName === 'lead_advisor' || roleName === 'advisor'
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
