@@ -71,3 +71,53 @@ export async function getRoleIdByName(
 
   return data?.id ?? null
 }
+
+/**
+ * Resolves the current user's role for their organization's active deal.
+ * Returns the role name (e.g. 'lead_advisor', 'advisor', 'viewer') or null
+ * if the user has no profile, no org deal, or no membership.
+ *
+ * Does NOT throw — returns null on any failure and logs the error.
+ * Safe for use in layout/guards where crashes must be avoided.
+ */
+export async function getCurrentUserActiveDealRole(
+  userId: string
+): Promise<string | null> {
+  try {
+    const admin = createAdminClient()
+
+    // 1. Get user's organization
+    const { data: profile, error: profileError } = await admin
+      .from('users')
+      .select('organization_id')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (profileError) {
+      console.error('getCurrentUserActiveDealRole: profile lookup failed', profileError)
+      return null
+    }
+    if (!profile?.organization_id) return null
+
+    // 2. Get org's active deal (single-deal MVP)
+    const { data: deal, error: dealError } = await admin
+      .from('deals')
+      .select('id')
+      .eq('organization_id', profile.organization_id)
+      .limit(1)
+      .maybeSingle()
+
+    if (dealError) {
+      console.error('getCurrentUserActiveDealRole: deal lookup failed', dealError)
+      return null
+    }
+    if (!deal?.id) return null
+
+    // 3. Resolve membership role
+    return await getUserDealRole(userId, deal.id)
+  } catch (err) {
+    console.error('getCurrentUserActiveDealRole: unexpected error', err)
+    return null
+  }
+}
+

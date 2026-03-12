@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { getCurrentUserActiveDealRole } from '@/utils/roles'
 
 export default async function CommunicationsPage() {
   const supabase = await createClient()
@@ -9,6 +10,12 @@ export default async function CommunicationsPage() {
 
   if (!user) {
     return redirect('/login')
+  }
+
+  // Stage 7C: viewer cannot access communications
+  const roleName = await getCurrentUserActiveDealRole(user.id)
+  if (roleName === 'viewer') {
+    return redirect('/dashboard')
   }
 
   // Get active deal

@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { getCurrentUserActiveDealRole } from '@/utils/roles'
 
 export default async function AIReviewPage() {
   const supabase = await createClient()
@@ -9,6 +10,12 @@ export default async function AIReviewPage() {
 
   if (!user) {
     return redirect('/login')
+  }
+
+  // Stage 7C: only lead_advisor can access AI review
+  const roleName = await getCurrentUserActiveDealRole(user.id)
+  if (roleName === 'advisor' || roleName === 'viewer') {
+    return redirect('/dashboard')
   }
 
   // Get active deal

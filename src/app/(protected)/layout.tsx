@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import { getCurrentUserActiveDealRole } from '@/utils/roles'
 
 export default async function ProtectedLayout({
   children,
@@ -15,6 +16,26 @@ export default async function ProtectedLayout({
     return redirect('/login')
   }
 
+  // Resolve current user's deal role for nav visibility
+  let roleName: string | null = null
+  try {
+    roleName = await getCurrentUserActiveDealRole(user.id)
+  } catch {
+    // Role resolution failed — fail closed for restricted items, but don't crash layout
+    console.error('ProtectedLayout: role resolution failed for user', user.id)
+  }
+
+  // Nav visibility rules per Stage 7 permission matrix
+  // lead_advisor (or null/unknown): show everything (fail-open for seller-first MVP)
+  // advisor: hide ai-review
+  // viewer: hide ai-review, communications, tasks
+  const isViewer = roleName === 'viewer'
+  const isAdvisor = roleName === 'advisor'
+
+  const showAiReview = !isViewer && !isAdvisor
+  const showCommunications = !isViewer
+  const showTasks = !isViewer
+
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">
       <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-4 border-b bg-white px-6">
@@ -28,11 +49,18 @@ export default async function ProtectedLayout({
             <a href="/buyers" className="text-gray-600 hover:text-blue-600 transition-colors">Покупатели</a>
             <a href="/pipeline" className="text-gray-600 hover:text-blue-600 transition-colors">Воронка</a>
             <a href="/documents" className="text-gray-600 hover:text-blue-600 transition-colors">Документы</a>
-            <a href="/communications" className="text-gray-600 hover:text-blue-600 transition-colors">История коммуникаций</a>
-            <a href="/tasks" className="text-gray-600 hover:text-blue-600 transition-colors">Задачи</a>
-            <a href="/ai-review" className="text-purple-600 hover:text-purple-800 font-bold transition-colors">Очередь ИИ</a>
+            {showCommunications && (
+              <a href="/communications" className="text-gray-600 hover:text-blue-600 transition-colors">История коммуникаций</a>
+            )}
+            {showTasks && (
+              <a href="/tasks" className="text-gray-600 hover:text-blue-600 transition-colors">Задачи</a>
+            )}
+            {showAiReview && (
+              <a href="/ai-review" className="text-purple-600 hover:text-purple-800 font-bold transition-colors">Очередь ИИ</a>
+            )}
           </nav>
-          <div className="flex items-center">
+          <div className="flex items-center gap-4">
+            <a href="/profile" className="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors">Мой профиль</a>
             <form action={async () => {
               'use server'
               const supabase = await createClient()
