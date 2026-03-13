@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { getUserDealRole } from '@/utils/roles'
 import { InviteSection } from './invite-section'
+import { DealSettingsForm } from './deal-settings-form'
 
 export default async function DealPage() {
   const supabase = await createClient()
@@ -28,14 +29,14 @@ export default async function DealPage() {
 
   const activeDeal = deals?.[0]
 
-  // Resolve user role for invite authority check
+  // Resolve user role for mutation authority check
   let isLeadAdvisor = false
   if (activeDeal?.id) {
     try {
       const role = await getUserDealRole(user.id, activeDeal.id)
       isLeadAdvisor = role === 'lead_advisor'
     } catch {
-      // Role check failed — hide invite section safely
+      // Role check failed — disable editing safely
     }
   }
 
@@ -48,49 +49,16 @@ export default async function DealPage() {
         </p>
       </div>
 
-      <form className="space-y-6 bg-white p-6 rounded-lg border shadow-sm">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Название проекта (Кодовое имя)</label>
-          <input
-            type="text"
-            className="w-full border rounded-md px-4 py-2"
-            defaultValue={activeDeal?.name || ''}
-            placeholder="Проект Альфа"
-            disabled
-          />
+      {activeDeal ? (
+        <DealSettingsForm
+          deal={activeDeal}
+          canEdit={isLeadAdvisor}
+        />
+      ) : (
+        <div className="bg-white p-12 text-center text-gray-500 rounded-lg border shadow-sm">
+          Активная сделка не найдена.
         </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Описание / Статус</label>
-          <textarea
-            className="w-full border rounded-md px-4 py-2 h-24"
-            defaultValue={activeDeal?.description || ''}
-            placeholder="Конфиденциальная продажа актива..."
-            disabled
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Индустрия цели</label>
-          <input
-            type="text"
-            className="w-full border rounded-md px-4 py-2"
-            defaultValue={activeDeal?.target_industry || ''}
-            placeholder="SaaS / Technology"
-            disabled
-          />
-        </div>
-
-        <div className="pt-4 border-t">
-          <button
-            type="button"
-            className="bg-gray-100 text-gray-400 font-medium px-4 py-2 rounded-md cursor-not-allowed"
-            disabled
-          >
-            Сохранить изменения (Заглушка)
-          </button>
-        </div>
-      </form>
+      )}
 
       {/* Invite section — visible only to lead_advisor */}
       {isLeadAdvisor && activeDeal?.id && (

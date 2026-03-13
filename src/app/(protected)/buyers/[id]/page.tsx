@@ -1,6 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
+import { getUserDealRole } from '@/utils/roles'
+import { PipelineStageSelector } from './pipeline-stage-selector'
 
 export default async function BuyerDetailPage({
   params,
@@ -22,7 +24,8 @@ export default async function BuyerDetailPage({
     .select(`
       *,
       buyer_pipeline_states(
-        pipeline_stages(name)
+        stage_id,
+        pipeline_stages(id, name)
       )
     `)
     .eq('id', id)
@@ -37,7 +40,24 @@ export default async function BuyerDetailPage({
     )
   }
 
-  const currentStageName = buyer.buyer_pipeline_states?.[0]?.pipeline_stages?.name || 'Нет этапа'
+  // Resolve role for mutation authority
+  let isLeadAdvisor = false
+  try {
+    const role = await getUserDealRole(user.id, buyer.deal_id)
+    isLeadAdvisor = role === 'lead_advisor'
+  } catch {
+    // Role check failed — disable editing
+  }
+
+  // Load available pipeline stages for this deal
+  const { data: stages } = await supabase
+    .from('pipeline_stages')
+    .select('id, name, sort_order')
+    .eq('deal_id', buyer.deal_id)
+    .order('sort_order', { ascending: true })
+
+  const currentStageId = buyer.buyer_pipeline_states?.[0]?.stage_id || null
+  const currentStageName = (buyer.buyer_pipeline_states?.[0]?.pipeline_stages as any)?.name || 'Нет этапа'
 
   return (
     <div className="max-w-4xl mx-auto py-8">
@@ -63,6 +83,18 @@ export default async function BuyerDetailPage({
           <p className="text-gray-700 whitespace-pre-line">{buyer.description || 'Описание отсутствует.'}</p>
         </div>
       </div>
+
+      {/* Pipeline Stage Selector — only for lead_advisor */}
+      {isLeadAdvisor && stages && stages.length > 0 && (
+        <div className="bg-white border rounded-lg shadow-sm p-6 mb-8">
+          <h2 className="text-base font-medium text-gray-900 mb-4">Управление воронкой</h2>
+          <PipelineStageSelector
+            buyerId={buyer.id}
+            currentStageId={currentStageId}
+            stages={stages.map(s => ({ id: s.id, name: s.name }))}
+          />
+        </div>
+      )}
       
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center flex flex-col items-center gap-4">
         <div>

@@ -1,6 +1,8 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { getCurrentUserActiveDealContext } from '@/utils/roles'
+import { CreateTaskForm } from './create-task-form'
+import { TaskStatusToggle } from './task-status-toggle'
 
 export default async function TasksPage() {
   const supabase = await createClient()
@@ -36,9 +38,7 @@ export default async function TasksPage() {
           <h1 className="text-3xl font-bold mb-2">Задачи</h1>
           <p className="text-gray-500">Операционный чек-лист для ведения сделки.</p>
         </div>
-        <button disabled className="bg-blue-600 opacity-50 text-white px-4 py-2 rounded-md font-medium">
-          + Добавить задачу
-        </button>
+        <CreateTaskForm />
       </div>
 
       <div className="bg-white border rounded-lg shadow-sm">
@@ -46,15 +46,7 @@ export default async function TasksPage() {
           <ul className="divide-y divide-gray-200">
             {tasks.map((task) => (
               <li key={task.id} className="p-4 flex items-start hover:bg-gray-50">
-                <div className="flex-shrink-0 mt-0.5">
-                  <input
-                    type="checkbox"
-                    checked={task.status === 'completed'}
-                    disabled
-                    title="Статус задачи"
-                    className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-not-allowed"
-                  />
-                </div>
+                <TaskStatusToggle taskId={task.id} currentStatus={task.status} />
                 <div className="ml-4 flex-1">
                   <h3 className={`text-base font-medium ${task.status === 'completed' ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                     {task.title}

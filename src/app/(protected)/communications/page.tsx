@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { getCurrentUserActiveDealContext } from '@/utils/roles'
+import { CreateCommunicationForm } from './create-communication-form'
 
 export default async function CommunicationsPage() {
   const supabase = await createClient()
@@ -30,6 +31,13 @@ export default async function CommunicationsPage() {
     .order('date', { ascending: false })
   communications = data || []
 
+  // Load buyers for the create form dropdown
+  const { data: buyers } = await supabase
+    .from('buyers')
+    .select('id, name')
+    .eq('deal_id', activeDealId)
+    .order('name', { ascending: true })
+
   return (
     <div className="max-w-4xl mx-auto py-8">
       <div className="flex justify-between items-center mb-8">
@@ -37,9 +45,7 @@ export default async function CommunicationsPage() {
           <h1 className="text-3xl font-bold mb-2">История коммуникаций</h1>
           <p className="text-gray-500">Централизованный лог взаимодействия с покупателями.</p>
         </div>
-        <button disabled className="bg-blue-600 opacity-50 text-white px-4 py-2 rounded-md font-medium">
-          + Добавить запись
-        </button>
+        <CreateCommunicationForm buyers={buyers || []} />
       </div>
 
       <div className="bg-white border rounded-lg shadow-sm">
