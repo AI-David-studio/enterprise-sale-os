@@ -38,7 +38,7 @@ export function ExternalInviteClient({ token, inviteEmail, currentUser }: Extern
       const result = await acceptExternalInvite(token)
       if (result.success) {
         setSuccess(true)
-        setTimeout(() => router.push('/portal'), 1500)
+        setTimeout(() => router.replace('/portal'), 1500)
       } else {
         setError(result.error || 'Ошибка принятия приглашения.')
       }
@@ -180,7 +180,8 @@ export function ExternalInviteClient({ token, inviteEmail, currentUser }: Extern
                   type="text"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="w-full border rounded-md px-4 py-2"
+                  disabled={loading}
+                  className="w-full border rounded-md px-4 py-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="Иван"
                   required
                 />
@@ -195,7 +196,8 @@ export function ExternalInviteClient({ token, inviteEmail, currentUser }: Extern
                   type="text"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="w-full border rounded-md px-4 py-2"
+                  disabled={loading}
+                  className="w-full border rounded-md px-4 py-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="Петров"
                   required
                 />
@@ -210,7 +212,8 @@ export function ExternalInviteClient({ token, inviteEmail, currentUser }: Extern
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full border rounded-md px-4 py-2"
+                  disabled={loading}
+                  className="w-full border rounded-md px-4 py-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="Минимум 8 символов"
                   minLength={8}
                   required

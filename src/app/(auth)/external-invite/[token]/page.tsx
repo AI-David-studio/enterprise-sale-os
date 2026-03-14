@@ -14,7 +14,7 @@ export default async function ExternalInvitePage({ params }: ExternalInvitePageP
 
   const { data: invite, error: inviteError } = await admin
     .from('external_invites')
-    .select('id, deal_id, email, status, expires_at, invited_by')
+    .select('id, deal_id, email, status, expires_at, invited_by, accepted_by')
     .eq('token', token)
     .limit(1)
     .maybeSingle()
@@ -35,14 +35,31 @@ export default async function ExternalInvitePage({ params }: ExternalInvitePageP
   }
 
   if (invite.status === 'accepted') {
+    // Resolve current user to determine if they are the one who accepted
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    const isAcceptor = user && invite.accepted_by && user.id === invite.accepted_by
+
+    if (isAcceptor) {
+      return (
+        <div className="flex-1 flex flex-col w-full px-8 sm:max-w-lg justify-center pt-20 mx-auto">
+          <div className="bg-gray-50 border rounded-lg p-6 text-center">
+            <h1 className="text-2xl font-semibold text-gray-800 mb-2">Приглашение принято</h1>
+            <p className="text-gray-600">Вы уже приняли это приглашение.</p>
+            <a href="/portal" className="inline-block mt-4 text-blue-600 hover:underline text-sm">
+              Перейти в портал
+            </a>
+          </div>
+        </div>
+      )
+    }
+
     return (
       <div className="flex-1 flex flex-col w-full px-8 sm:max-w-lg justify-center pt-20 mx-auto">
         <div className="bg-gray-50 border rounded-lg p-6 text-center">
           <h1 className="text-2xl font-semibold text-gray-800 mb-2">Приглашение использовано</h1>
-          <p className="text-gray-600">Это приглашение уже было принято.</p>
-          <a href="/portal" className="inline-block mt-4 text-blue-600 hover:underline text-sm">
-            Перейти в портал
-          </a>
+          <p className="text-gray-600">Это приглашение уже было принято другим аккаунтом.</p>
         </div>
       </div>
     )

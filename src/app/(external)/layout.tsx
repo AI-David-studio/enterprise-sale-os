@@ -12,7 +12,7 @@ export default async function ExternalLayout({
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return redirect('/login')
+    return redirect(`/login?redirect=${encodeURIComponent('/portal')}`)
   }
 
   return (

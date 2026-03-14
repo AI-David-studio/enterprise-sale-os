@@ -22,6 +22,10 @@ const externalDownloadSchema = z.object({
   document_id: z.string().uuid('Некорректный ID документа.'),
 })
 
+// Opaque error for all unauthorized / not-found conditions.
+// Avoids document-existence oracle for external principals.
+const OPAQUE_NOT_FOUND = 'Документ не найден.'
+
 // ---------------------------------------------------------------------------
 // getExternalDocumentDownloadUrlAction
 // ---------------------------------------------------------------------------
@@ -33,12 +37,8 @@ const externalDownloadSchema = z.object({
  * Does NOT use getCurrentUserActiveDealContext.
  * Does NOT depend on deal_members or organization membership.
  *
- * Requirements:
- *  1. Caller must be authenticated
- *  2. Document must exist
- *  3. Document must have is_external = true
- *  4. Caller must have an active (non-revoked) external_access row
- *     for the document's deal_id
+ * All unauthorized/missing/non-external paths return the same opaque
+ * "not found" error to prevent document-ID existence oracles.
  */
 export async function getExternalDocumentDownloadUrlAction(
   formData: FormData
@@ -73,26 +73,26 @@ export async function getExternalDocumentDownloadUrlAction(
     .single()
 
   if (docError || !doc) {
-    return { success: false, error: 'Документ не найден.' }
+    return { success: false, error: OPAQUE_NOT_FOUND }
   }
 
   // 3. Verify document is externally allowlisted
   if (!doc.is_external) {
-    return { success: false, error: 'Документ не найден.' }
+    return { success: false, error: OPAQUE_NOT_FOUND }
   }
 
-  // 4. Verify caller has active external access for this deal
-  const { data: access, error: accessError } = await admin
+  // 4. Verify caller has exactly 1 active external access for this deal
+  //    Fetch up to 2 rows — if count !== 1, fail closed.
+  const { data: accessRows, error: accessError } = await admin
     .from('external_access')
     .select('id')
     .eq('deal_id', doc.deal_id)
     .eq('user_id', user.id)
     .is('revoked_at', null)
-    .limit(1)
-    .maybeSingle()
+    .limit(2)
 
-  if (accessError || !access) {
-    return { success: false, error: 'У вас нет доступа к этому документу.' }
+  if (accessError || !accessRows || accessRows.length !== 1) {
+    return { success: false, error: OPAQUE_NOT_FOUND }
   }
 
   // 5. Generate signed URL via admin client

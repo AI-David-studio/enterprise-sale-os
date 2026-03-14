@@ -10,7 +10,7 @@ export function ExternalDownloadButton({ documentId }: { documentId: string }) {
     async (_prev: ExternalDocumentActionResult, formData: FormData) => {
       const result = await getExternalDocumentDownloadUrlAction(formData)
       if (result.success && result.url) {
-        window.open(result.url, '_blank')
+        window.location.assign(result.url)
       }
       return result
     },
