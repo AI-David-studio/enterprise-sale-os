@@ -2,6 +2,7 @@ import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { getUserDealRole } from '@/utils/roles'
 import { InviteSection } from './invite-section'
+import { ExternalInviteSection } from './external-invite-section'
 import { DealSettingsForm } from './deal-settings-form'
 
 export default async function DealPage() {
@@ -40,6 +41,28 @@ export default async function DealPage() {
     }
   }
 
+  // Fetch external invites and active external access for the deal
+  let externalInvites: { id: string; email: string; status: string; created_at: string; accepted_at: string | null; expires_at: string }[] = []
+  let activeExternalAccess: { id: string; invited_email: string; created_at: string }[] = []
+
+  if (isLeadAdvisor && activeDeal?.id) {
+    const { data: invites } = await supabase
+      .from('external_invites')
+      .select('id, email, status, created_at, accepted_at, expires_at')
+      .eq('deal_id', activeDeal.id)
+      .order('created_at', { ascending: false })
+
+    const { data: access } = await supabase
+      .from('external_access')
+      .select('id, invited_email, created_at')
+      .eq('deal_id', activeDeal.id)
+      .is('revoked_at', null)
+      .order('created_at', { ascending: false })
+
+    externalInvites = invites || []
+    activeExternalAccess = access || []
+  }
+
   return (
     <div className="max-w-4xl mx-auto py-8">
       <div className="mb-8">
@@ -60,9 +83,18 @@ export default async function DealPage() {
         </div>
       )}
 
-      {/* Invite section — visible only to lead_advisor */}
+      {/* Internal invite section — visible only to lead_advisor */}
       {isLeadAdvisor && activeDeal?.id && (
         <InviteSection dealId={activeDeal.id} />
+      )}
+
+      {/* External invite section — visible only to lead_advisor */}
+      {isLeadAdvisor && activeDeal?.id && (
+        <ExternalInviteSection
+          dealId={activeDeal.id}
+          externalInvites={externalInvites}
+          activeExternalAccess={activeExternalAccess}
+        />
       )}
     </div>
   )
