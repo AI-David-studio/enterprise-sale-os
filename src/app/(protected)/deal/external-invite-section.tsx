@@ -209,85 +209,90 @@ export function ExternalInviteSection({
         </button>
       </form>
 
-      {/* ---- EXTERNAL INVITES TABLE ---- */}
-      <h3 className="text-lg font-semibold mb-3">Приглашения</h3>
-      {externalInvites.length === 0 ? (
-        <p className="text-sm text-gray-400 mb-6">Внешних приглашений ещё нет.</p>
-      ) : (
-        <div className="border rounded-lg overflow-hidden mb-6">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="px-4 py-2 font-medium text-gray-500">Email</th>
-                <th className="px-4 py-2 font-medium text-gray-500">Статус</th>
-                <th className="px-4 py-2 font-medium text-gray-500">Создано</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {externalInvites.map((inv) => {
-                const badge = statusLabel(inv.status)
-                return (
-                  <tr key={inv.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2 font-mono text-gray-800">{inv.email}</td>
-                    <td className="px-4 py-2">
-                      <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${badge.className}`}>
-                        {badge.text}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-gray-500">
-                      {new Date(inv.created_at).toLocaleDateString('ru-RU')}
-                    </td>
+      {/* ---- LISTING SECTIONS (hidden on read error) ---- */}
+      {!externalReadError && (
+        <>
+          {/* ---- EXTERNAL INVITES TABLE ---- */}
+          <h3 className="text-lg font-semibold mb-3">Приглашения</h3>
+          {externalInvites.length === 0 ? (
+            <p className="text-sm text-gray-400 mb-6">Внешних приглашений ещё нет.</p>
+          ) : (
+            <div className="border rounded-lg overflow-hidden mb-6">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-4 py-2 font-medium text-gray-500">Email</th>
+                    <th className="px-4 py-2 font-medium text-gray-500">Статус</th>
+                    <th className="px-4 py-2 font-medium text-gray-500">Создано</th>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                </thead>
+                <tbody className="divide-y">
+                  {externalInvites.map((inv) => {
+                    const badge = statusLabel(inv.status)
+                    return (
+                      <tr key={inv.id} className="hover:bg-gray-50">
+                        <td className="px-4 py-2 font-mono text-gray-800">{inv.email}</td>
+                        <td className="px-4 py-2">
+                          <span className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full ${badge.className}`}>
+                            {badge.text}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-gray-500">
+                          {new Date(inv.created_at).toLocaleDateString('ru-RU')}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
-      {/* ---- ACTIVE EXTERNAL ACCESS TABLE ---- */}
-      <h3 className="text-lg font-semibold mb-3">Активный внешний доступ</h3>
+          {/* ---- ACTIVE EXTERNAL ACCESS TABLE ---- */}
+          <h3 className="text-lg font-semibold mb-3">Активный внешний доступ</h3>
 
-      {revokeError && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-3 text-sm">
-          {revokeError}
-        </div>
-      )}
+          {revokeError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-3 text-sm">
+              {revokeError}
+            </div>
+          )}
 
-      {activeExternalAccess.length === 0 ? (
-        <p className="text-sm text-gray-400">Активных внешних доступов нет.</p>
-      ) : (
-        <div className="border rounded-lg overflow-hidden">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="px-4 py-2 font-medium text-gray-500">Email</th>
-                <th className="px-4 py-2 font-medium text-gray-500">Выдан</th>
-                <th className="px-4 py-2 font-medium text-gray-500">Действие</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {activeExternalAccess.map((acc) => (
-                <tr key={acc.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 font-mono text-gray-800">{acc.invited_email}</td>
-                  <td className="px-4 py-2 text-gray-500">
-                    {new Date(acc.created_at).toLocaleDateString('ru-RU')}
-                  </td>
-                  <td className="px-4 py-2">
-                    <button
-                      type="button"
-                      onClick={() => handleRevoke(acc.id)}
-                      disabled={revokingId === acc.id}
-                      className="text-red-600 hover:text-red-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {revokingId === acc.id ? 'Отзыв…' : 'Отозвать'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          {activeExternalAccess.length === 0 ? (
+            <p className="text-sm text-gray-400">Активных внешних доступов нет.</p>
+          ) : (
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="px-4 py-2 font-medium text-gray-500">Email</th>
+                    <th className="px-4 py-2 font-medium text-gray-500">Выдан</th>
+                    <th className="px-4 py-2 font-medium text-gray-500">Действие</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {activeExternalAccess.map((acc) => (
+                    <tr key={acc.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2 font-mono text-gray-800">{acc.invited_email}</td>
+                      <td className="px-4 py-2 text-gray-500">
+                        {new Date(acc.created_at).toLocaleDateString('ru-RU')}
+                      </td>
+                      <td className="px-4 py-2">
+                        <button
+                          type="button"
+                          onClick={() => handleRevoke(acc.id)}
+                          disabled={revokingId === acc.id}
+                          className="text-red-600 hover:text-red-800 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {revokingId === acc.id ? 'Отзыв…' : 'Отозвать'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </div>
   )
