@@ -60,7 +60,7 @@ export function ExternalInviteClient({ token, inviteEmail, currentUser }: Extern
       const result = await acceptExternalInvite(token, password, firstName, lastName)
       if (result.success) {
         setSuccess(true)
-        setTimeout(() => router.push('/portal'), 1500)
+        setTimeout(() => router.replace('/portal'), 1500)
       } else {
         setError(result.error || 'Ошибка регистрации.')
       }
