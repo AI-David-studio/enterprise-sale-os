@@ -10,11 +10,11 @@ Define the external-access isolation model required before any buyer/investor po
 The current security model (Stage 8 RLS) was designed exclusively for internal seller-side collaboration. Every authenticated user who is a `deal_member` — regardless of role — can read core CRM entities (buyers, pipeline stages, documents) through direct Supabase API queries. If an external buyer-side evaluator were added as a `deal_member` with any existing role, they would gain lateral visibility into competing buyers, internal working documents, and pipeline progression data. This is a fundamental M&A confidentiality violation that cannot be mitigated at the UI layer alone; it must be solved at the data layer before any external-facing surface is built.
 
 ## 4. External Persona Definition
-- **Identity**: External buyer-side evaluator or investor representative.
+- **Identity**: A specifically invited external buyer-side evaluator, invited to review a single deal. This is the sole MVP external persona.
 - **Scope**: Invited to review exactly one deal. No multi-deal visibility.
 - **Access level**: Strictly read-only. No mutations of any kind.
 - **Forbidden capabilities**: Workflow progression, NDA execution, offer handling, messaging, pipeline stage changes, document uploads, task creation, AI interaction.
-- **Out-of-scope personas**: LPs, target-company executives, advisors from other banks, board observers. These require separate future planning if ever needed.
+- **Out-of-scope personas**: Investor representatives, LPs, target-company executives, advisors from other banks, board observers. These are distinct audience classes that require separate future planning if ever needed and must not be conflated with the single MVP persona above.
 
 ## 5. Current-State Security Boundary Analysis
 
@@ -170,8 +170,8 @@ A new helper function (conceptually `has_external_access(deal_id)`) would check 
 
 | Table | External Access Direction |
 |---|---|
-| `deals` | SELECT allowed — restricted to the specific deal the user is invited to. Only non-sensitive summary fields (name, description, target_industry). |
-| `documents` | SELECT allowed — restricted to documents explicitly marked as external-facing. |
+| `deals` | A portal-safe deal summary surface only — NOT blanket `SELECT *` on the internal `deals` table. Only explicitly selected non-sensitive fields (e.g., name, description, target_industry) may be surfaced externally. The exact implementation mechanism (narrow RLS projection, dedicated read view, or server-mediated query) is not locked by this planning document and will be determined during execution. |
+| `documents` | SELECT allowed — restricted to documents explicitly marked as external-facing via the allowlisting mechanism. |
 | `buyers` | **BLOCKED** — no external RLS policy. Zero rows returned. |
 | `pipeline_stages` | **BLOCKED** — no external RLS policy. Zero rows returned. |
 | `buyer_pipeline_states` | **BLOCKED** — no external RLS policy. Zero rows returned. |
@@ -191,9 +191,11 @@ Documents require an explicit external-visibility flag or junction table. The co
 The column-based approach is simpler and sufficient for MVP. The junction-based approach offers finer granularity per-external-user but adds schema complexity.
 
 ### 10.4 Storage Bucket Isolation
-Current Supabase Storage policies on the `vault` bucket allow any authenticated user to read any object. This must be tightened:
+Current Supabase Storage policies on the `vault` bucket allow any authenticated user to read any object. This is a **security blocker** for external access and must be resolved as part of Stage 15A (not deferred to a later optional refinement):
+- External file access cannot rely on the current broad authenticated-user bucket readability.
 - External users should only download files whose corresponding `documents` row is marked external-facing.
-- Server-mediated download (via server action + signed URL) is the safest approach, avoiding direct storage policy complexity.
+- External document downloads must be tightened via server-mediated access (server action + signed URL) as part of the Stage 15A security implementation.
+- Storage access hardening is an explicit deliverable of Stage 15A.
 
 ## 11. Required Future Invitation / Access Semantics
 The following defines the conceptual invitation model for external principals. Invite-flow code changes are downstream implementation work, not part of this planning stage.
@@ -212,14 +214,11 @@ The following defines the conceptual invitation model for external principals. I
 2. System generates a token-bound link.
 3. External user registers or logs in via the invite link.
 4. On acceptance, system creates an `external_access` row (NOT a `deal_members` row).
-5. External user is redirected to a separate external portal route group.
+
+Note: Portal route redirection, onboarding UX, and external-facing page design are NOT part of this flow description. Those belong to a future portal UI stage.
 
 ### 11.3 Separation from Internal Invites
-The current `ALLOWED_INVITE_ROLES` constant and the `createInvite` function are designed for internal collaboration. External invitations will likely require either:
-- A separate action function (e.g., `createExternalInvite`), or
-- An `invite_type` discriminator on `deal_invites`.
-
-The exact implementation approach is deferred to the execution stage.
+Invite-flow changes are downstream implementation work. Only the minimum provisioning needed for external-access creation and revocation belongs in Stage 15A. The exact code path (separate action function, invite-type discriminator, or other mechanism) is deferred to Stage 15A execution. This planning document does not lock one specific approach.
 
 ## 12. Explicit NO-GO for Portal UI Before Isolation
 **Portal UI execution remains NO-GO.** No external-facing UI routes, components, or pages may be built until:
@@ -255,8 +254,19 @@ The exact implementation approach is deferred to the execution stage.
 - STOP if any source file changes are made during this planning stage.
 
 ## 16. Next Recommended Stage
-**STAGE 15A EXECUTION: EXTERNAL ACCESS SCHEMA & RLS IMPLEMENTATION**
+**STAGE 15A EXECUTION: EXTERNAL ACCESS SECURITY IMPLEMENTATION**
 
-This stage would implement the external access table, document visibility flag, new RLS policies, and external invite flow — all as a single security-focused execution stage, without any UI work.
+Stage 15A is explicitly a **security / access implementation stage only**. Its scope includes:
+- External access schema/model implementation
+- External RLS / data-isolation implementation
+- External-document allowlisting mechanism
+- Storage access hardening for external downloads
+- Minimal invite-provisioning changes strictly required to create and revoke external access records
+
+Stage 15A explicitly **excludes**:
+- Portal UI routes, pages, or components
+- Buyer-facing UX of any kind
+- Messaging, negotiation, or workflow features
+- Any non-security product work
 
 Only after Stage 15A is accepted and verified should portal UI work begin in a subsequent stage (tentatively Stage 15B).
