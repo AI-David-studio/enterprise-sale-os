@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
 import { getCurrentUserActiveDealContext } from '@/utils/roles'
-
+import { Toaster } from 'react-hot-toast'
 export default async function ProtectedLayout({
   children,
 }: {
@@ -69,6 +69,7 @@ export default async function ProtectedLayout({
         </div>
       </header>
       <main className="flex-1 overflow-auto p-6">
+        <Toaster position="bottom-right" />
         {children}
       </main>
     </div>

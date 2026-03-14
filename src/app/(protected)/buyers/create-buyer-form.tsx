@@ -1,13 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useActionState } from 'react'
 import { createBuyerAction, type BuyerActionResult } from '@/actions/buyer'
+import toast from 'react-hot-toast'
 
 const initialState: BuyerActionResult = { success: false }
 
 export function CreateBuyerForm() {
   const [isOpen, setIsOpen] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
 
   const [state, formAction, isPending] = useActionState(
     async (_prev: BuyerActionResult, formData: FormData) => {
@@ -19,6 +21,22 @@ export function CreateBuyerForm() {
     },
     initialState
   )
+
+  useEffect(() => {
+    if (state.success) {
+      toast.success('Покупатель успешно создан')
+      formRef.current?.reset()
+      // state.success doesn't intrinsically clear the error field in React 19 useActionState unless returned clean,
+      // but this matches the contract.
+    }
+  }, [state.success])
+
+  const handleClose = () => {
+    if (!isPending) {
+      setIsOpen(false)
+      formRef.current?.reset()
+    }
+  }
 
   if (!isOpen) {
     return (
@@ -37,7 +55,7 @@ export function CreateBuyerForm() {
         <div className="px-6 py-4 border-b flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-900">Новый покупатель</h2>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={handleClose}
             className="text-gray-400 hover:text-gray-600 text-xl leading-none"
             disabled={isPending}
           >
@@ -45,7 +63,7 @@ export function CreateBuyerForm() {
           </button>
         </div>
 
-        <form action={formAction} className="p-6 space-y-4">
+        <form ref={formRef} action={formAction} className="p-6 space-y-4">
           <div>
             <label htmlFor="buyer-name" className="block text-sm font-medium text-gray-700 mb-1">Название *</label>
             <input
@@ -103,7 +121,7 @@ export function CreateBuyerForm() {
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
-              onClick={() => setIsOpen(false)}
+              onClick={handleClose}
               disabled={isPending}
               className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50 font-medium disabled:opacity-50"
             >

@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import { toggleTaskStatusAction, type TaskActionResult } from '@/actions/task'
+import toast from 'react-hot-toast'
 
 const initialState: TaskActionResult = { success: false }
 
@@ -18,6 +19,14 @@ export function TaskStatusToggle({
     },
     initialState
   )
+
+  useEffect(() => {
+    if (state.success) {
+      toast.success('Статус задачи обновлен')
+    } else if (state.error) {
+      toast.error(state.error)
+    }
+  }, [state])
 
   const isCompleted = currentStatus === 'completed'
 
@@ -41,9 +50,6 @@ export function TaskStatusToggle({
           </svg>
         )}
       </button>
-      {state.error && (
-        <span className="text-xs text-red-500 ml-2">{state.error}</span>
-      )}
     </form>
   )
 }

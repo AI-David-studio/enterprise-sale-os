@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useActionState } from 'react'
 import { createCommunicationAction, type CommunicationActionResult } from '@/actions/communication'
+import toast from 'react-hot-toast'
 
 const initialState: CommunicationActionResult = { success: false }
 
@@ -12,6 +13,7 @@ export function CreateCommunicationForm({
   buyers: { id: string; name: string }[]
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
 
   const [state, formAction, isPending] = useActionState(
     async (_prev: CommunicationActionResult, formData: FormData) => {
@@ -23,6 +25,20 @@ export function CreateCommunicationForm({
     },
     initialState
   )
+
+  useEffect(() => {
+    if (state.success) {
+      toast.success('Коммуникация успешно сохранена')
+      formRef.current?.reset()
+    }
+  }, [state.success])
+
+  const handleClose = () => {
+    if (!isPending) {
+      setIsOpen(false)
+      formRef.current?.reset()
+    }
+  }
 
   // Default datetime-local value: current local time formatted as YYYY-MM-DDTHH:MM
   const now = new Date()
@@ -45,7 +61,7 @@ export function CreateCommunicationForm({
         <div className="px-6 py-4 border-b flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-900">Новая запись коммуникации</h2>
           <button
-            onClick={() => setIsOpen(false)}
+            onClick={handleClose}
             className="text-gray-400 hover:text-gray-600 text-xl leading-none"
             disabled={isPending}
           >
@@ -53,7 +69,7 @@ export function CreateCommunicationForm({
           </button>
         </div>
 
-        <form action={formAction} className="p-6 space-y-4">
+        <form ref={formRef} action={formAction} className="p-6 space-y-4">
           <div>
             <label htmlFor="comm-buyer" className="block text-sm font-medium text-gray-700 mb-1">Покупатель *</label>
             <select
@@ -122,7 +138,7 @@ export function CreateCommunicationForm({
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
-              onClick={() => setIsOpen(false)}
+              onClick={handleClose}
               disabled={isPending}
               className="px-4 py-2 border rounded-md text-gray-700 hover:bg-gray-50 font-medium disabled:opacity-50"
             >

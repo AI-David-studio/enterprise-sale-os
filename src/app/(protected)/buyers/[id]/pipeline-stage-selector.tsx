@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import { moveBuyerStageAction, type BuyerActionResult } from '@/actions/buyer'
+import toast from 'react-hot-toast'
 
 const initialState: BuyerActionResult = { success: false }
 
@@ -20,6 +21,14 @@ export function PipelineStageSelector({
     },
     initialState
   )
+
+  useEffect(() => {
+    if (state.success) {
+      toast.success('Этап обновлён')
+    } else if (state.error) {
+      toast.error(state.error)
+    }
+  }, [state])
 
   return (
     <form action={formAction}>
@@ -49,18 +58,6 @@ export function PipelineStageSelector({
           {isPending ? 'Сохранение...' : 'Применить'}
         </button>
       </div>
-
-      {state.error && (
-        <div className="mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
-          {state.error}
-        </div>
-      )}
-
-      {state.success && (
-        <div className="mt-3 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-md text-sm">
-          Этап обновлён.
-        </div>
-      )}
     </form>
   )
 }

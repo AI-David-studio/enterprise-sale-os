@@ -1,7 +1,8 @@
 'use client'
 
-import { useActionState } from 'react'
+import { useActionState, useEffect } from 'react'
 import { updateDealAction, type DealActionResult } from '@/actions/deal'
+import toast from 'react-hot-toast'
 
 const initialState: DealActionResult = { success: false }
 
@@ -18,6 +19,12 @@ export function DealSettingsForm({
     },
     initialState
   )
+
+  useEffect(() => {
+    if (state.success) {
+      toast.success('Настройки проекта обновлены')
+    }
+  }, [state.success])
 
   return (
     <form action={formAction} className="space-y-6 bg-white p-6 rounded-lg border shadow-sm">
