@@ -1,9 +1,10 @@
 'use server'
 
 import { randomBytes } from 'crypto'
+import { z } from 'zod'
 import { createClient } from '@/utils/supabase/server'
 import { createAdminClient } from '@/utils/supabase/admin'
-import { isDealOwner } from '@/utils/roles'
+import { getCurrentUserActiveDealContext } from '@/utils/roles'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,6 +30,27 @@ const EXTERNAL_INVITE_EXPIRY_DAYS = 7
 const TOKEN_BYTES = 32 // 256 bits of entropy → 64 hex chars
 
 // ---------------------------------------------------------------------------
+// Zod Schemas
+// ---------------------------------------------------------------------------
+
+const createExternalInviteSchema = z.object({
+  dealId: z.string().uuid('Некорректный ID сделки.'),
+  inviteeEmail: z.string().email('Некорректный email-адрес.'),
+})
+
+const acceptExternalInviteSchema = z.object({
+  token: z.string().trim().min(1, 'Токен обязателен.').max(256, 'Токен слишком длинный.'),
+  password: z.string().min(8, 'Пароль должен содержать минимум 8 символов.').optional(),
+  firstName: z.string().trim().min(1, 'Укажите имя.').optional(),
+  lastName: z.string().trim().min(1, 'Укажите фамилию.').optional(),
+})
+
+const revokeExternalAccessSchema = z.object({
+  externalAccessId: z.string().uuid('Некорректный ID доступа.'),
+  dealId: z.string().uuid('Некорректный ID сделки.'),
+})
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -36,6 +58,93 @@ function getSiteOrigin(): string | null {
   const url = process.env.NEXT_PUBLIC_SITE_URL
   if (!url) return null
   return url.replace(/\/+$/, '')
+}
+
+/**
+ * Verifies the calling user is lead_advisor for the exact dealId.
+ * Uses getCurrentUserActiveDealContext to resolve through org → deal → role.
+ */
+async function verifyLeadAdvisorForDeal(
+  userId: string,
+  dealId: string
+): Promise<{ authorized: true } | { authorized: false; error: string }> {
+  const ctx = await getCurrentUserActiveDealContext(userId)
+
+  if (!ctx || !ctx.dealId) {
+    return { authorized: false, error: 'Активная сделка не найдена.' }
+  }
+
+  if (ctx.dealId !== dealId) {
+    return { authorized: false, error: 'Указанная сделка не соответствует вашей активной сделке.' }
+  }
+
+  if (ctx.roleName !== 'lead_advisor') {
+    return { authorized: false, error: 'Только lead_advisor сделки может выполнить это действие.' }
+  }
+
+  return { authorized: true }
+}
+
+/**
+ * Trust-purity guard: checks that a user does NOT have internal trust markers.
+ * Returns true if the user is "pure external" (safe to grant external access).
+ * Returns false if the user has internal org membership or deal_members presence.
+ */
+async function isExternalPure(userId: string): Promise<boolean> {
+  const admin = createAdminClient()
+
+  // Check 1: user must not have a non-null organization_id
+  const { data: profile, error: profileError } = await admin
+    .from('users')
+    .select('organization_id, user_type')
+    .eq('id', userId)
+    .maybeSingle()
+
+  if (profileError) {
+    console.error('isExternalPure: profile lookup failed', profileError)
+    return false // fail closed
+  }
+
+  if (!profile) {
+    return false // no profile = fail closed
+  }
+
+  if (profile.organization_id !== null) {
+    return false // has internal org membership
+  }
+
+  // Check 2: user must not be in deal_members at all
+  const { data: memberRow, error: memberError } = await admin
+    .from('deal_members')
+    .select('id')
+    .eq('user_id', userId)
+    .limit(1)
+    .maybeSingle()
+
+  if (memberError) {
+    console.error('isExternalPure: deal_members lookup failed', memberError)
+    return false // fail closed
+  }
+
+  if (memberRow) {
+    return false // has internal deal membership
+  }
+
+  return true
+}
+
+/**
+ * Cleanup a just-created auth user + profile on purity rejection.
+ * Only call this for newly created users within the accept flow.
+ */
+async function cleanupNewExternalUser(
+  userId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>
+): Promise<void> {
+  const admin = createAdminClient()
+  try { await admin.from('users').delete().eq('id', userId) } catch { /* ignore */ }
+  try { await supabase.auth.signOut() } catch { /* ignore */ }
+  try { await admin.auth.admin.deleteUser(userId) } catch { /* ignore */ }
 }
 
 // ---------------------------------------------------------------------------
@@ -55,22 +164,22 @@ export async function createExternalInvite(
   dealId: string,
   inviteeEmail: string
 ): Promise<ExternalInviteResult> {
+  // --- Zod validation ---
+  const parsed = createExternalInviteSchema.safeParse({ dealId, inviteeEmail })
+  if (!parsed.success) {
+    const firstError = parsed.error.issues[0]?.message || 'Ошибка валидации.'
+    return { success: false, error: firstError }
+  }
+
+  const email = parsed.data.inviteeEmail.trim().toLowerCase()
+  const validDealId = parsed.data.dealId
+
   // --- Auth check ---
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (authError || !user) {
     return { success: false, error: 'Необходимо войти в систему.' }
-  }
-
-  // --- Input validation ---
-  const email = inviteeEmail?.trim().toLowerCase()
-  if (!email) {
-    return { success: false, error: 'Укажите email приглашённого пользователя.' }
-  }
-
-  if (!dealId) {
-    return { success: false, error: 'Не указана сделка для приглашения.' }
   }
 
   // --- Site origin check ---
@@ -82,15 +191,10 @@ export async function createExternalInvite(
     }
   }
 
-  // --- Authority check: caller must be lead_advisor ---
-  try {
-    const isOwner = await isDealOwner(user.id, dealId)
-    if (!isOwner) {
-      return { success: false, error: 'Только владелец сделки может создавать внешние приглашения.' }
-    }
-  } catch (err) {
-    console.error('createExternalInvite: authority check failed', err)
-    return { success: false, error: 'Ошибка проверки прав доступа.' }
+  // --- Authority check: caller must be lead_advisor for this exact deal ---
+  const authResult = await verifyLeadAdvisorForDeal(user.id, validDealId)
+  if (!authResult.authorized) {
+    return { success: false, error: authResult.error }
   }
 
   const admin = createAdminClient()
@@ -99,7 +203,7 @@ export async function createExternalInvite(
   const { data: existingInvite, error: lookupError } = await admin
     .from('external_invites')
     .select('id, token, expires_at')
-    .eq('deal_id', dealId)
+    .eq('deal_id', validDealId)
     .eq('email', email)
     .eq('status', 'pending')
     .limit(1)
@@ -129,7 +233,7 @@ export async function createExternalInvite(
   const { error: insertError } = await admin
     .from('external_invites')
     .insert({
-      deal_id: dealId,
+      deal_id: validDealId,
       email,
       token,
       status: 'pending',
@@ -143,7 +247,7 @@ export async function createExternalInvite(
       const { data: raceWinner, error: reQueryError } = await admin
         .from('external_invites')
         .select('id, token')
-        .eq('deal_id', dealId)
+        .eq('deal_id', validDealId)
         .eq('email', email)
         .eq('status', 'pending')
         .limit(1)
@@ -179,6 +283,9 @@ export async function createExternalInvite(
  * Accepts an external invite for a new or existing authenticated user.
  * Creates an external_access row. Does NOT create a deal_members row.
  * Does NOT assign the user to the seller's organization.
+ *
+ * Trust purity: rejects users who already have internal trust markers
+ * (organization_id or deal_members presence).
  */
 export async function acceptExternalInvite(
   token: string,
@@ -186,9 +293,14 @@ export async function acceptExternalInvite(
   firstName?: string,
   lastName?: string
 ): Promise<ExternalInviteResult> {
-  if (!token?.trim()) {
-    return { success: false, error: 'Приглашение не найдено.' }
+  // --- Zod validation ---
+  const parsed = acceptExternalInviteSchema.safeParse({ token, password, firstName, lastName })
+  if (!parsed.success) {
+    const firstError = parsed.error.issues[0]?.message || 'Ошибка валидации.'
+    return { success: false, error: firstError }
   }
+
+  const validToken = parsed.data.token
 
   const admin = createAdminClient()
 
@@ -196,7 +308,7 @@ export async function acceptExternalInvite(
   const { data: invite, error: inviteError } = await admin
     .from('external_invites')
     .select('id, deal_id, email, status, expires_at, invited_by')
-    .eq('token', token.trim())
+    .eq('token', validToken)
     .limit(1)
     .maybeSingle()
 
@@ -222,6 +334,7 @@ export async function acceptExternalInvite(
   const email = invite.email.trim().toLowerCase()
   const supabase = await createClient()
   let userId: string | undefined
+  let isNewlyCreatedUser = false
 
   // --- Determine if this is a new or existing user ---
   const { data: { user: existingUser } } = await supabase.auth.getUser()
@@ -233,23 +346,11 @@ export async function acceptExternalInvite(
       return { success: false, error: 'Это приглашение предназначено для другого email-адреса.' }
     }
     userId = existingUser.id
-  } else if (password && firstName && lastName) {
+  } else if (parsed.data.password && parsed.data.firstName && parsed.data.lastName) {
     // New account registration (inline)
-    const trimmedPassword = password.trim()
-    const trimmedFirst = firstName.trim()
-    const trimmedLast = lastName.trim()
-
-    if (!trimmedPassword || !trimmedFirst || !trimmedLast) {
-      return { success: false, error: 'Заполните все обязательные поля.' }
-    }
-
-    if (trimmedPassword.length < 8) {
-      return { success: false, error: 'Пароль должен содержать минимум 8 символов.' }
-    }
-
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
       email,
-      password: trimmedPassword,
+      password: parsed.data.password,
     })
 
     if (signUpError) {
@@ -274,19 +375,32 @@ export async function acceptExternalInvite(
       id: userId,
       organization_id: null,
       email,
-      first_name: trimmedFirst,
-      last_name: trimmedLast,
+      first_name: parsed.data.firstName.trim(),
+      last_name: parsed.data.lastName.trim(),
       user_type: 'external',
     })
 
     if (profileError) {
-      // Cleanup auth user on profile failure
-      await supabase.auth.signOut().catch(() => {})
-      await admin.auth.admin.deleteUser(userId).catch(() => {})
+      await cleanupNewExternalUser(userId, supabase)
       return { success: false, error: 'Ошибка создания профиля.' }
     }
+
+    isNewlyCreatedUser = true
   } else {
     return { success: false, error: 'Необходимо войти в систему или заполнить регистрационные данные.' }
+  }
+
+  // --- Trust purity guard ---
+  // External principals must not simultaneously carry internal trust semantics.
+  const isPure = await isExternalPure(userId!)
+  if (!isPure) {
+    if (isNewlyCreatedUser) {
+      await cleanupNewExternalUser(userId!, supabase)
+    }
+    return {
+      success: false,
+      error: 'Для внешнего доступа необходимо использовать отдельный внешний аккаунт. Этот аккаунт уже связан с внутренней организацией или сделкой.',
+    }
   }
 
   // --- Check for existing active external access ---
@@ -381,6 +495,17 @@ export async function revokeExternalAccess(
   externalAccessId: string,
   dealId: string
 ): Promise<ExternalAccessRevokeResult> {
+  // --- Zod validation ---
+  const parsed = revokeExternalAccessSchema.safeParse({ externalAccessId, dealId })
+  if (!parsed.success) {
+    const firstError = parsed.error.issues[0]?.message || 'Ошибка валидации.'
+    return { success: false, error: firstError }
+  }
+
+  const validAccessId = parsed.data.externalAccessId
+  const validDealId = parsed.data.dealId
+
+  // --- Auth check ---
   const supabase = await createClient()
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
@@ -388,14 +513,10 @@ export async function revokeExternalAccess(
     return { success: false, error: 'Необходимо войти в систему.' }
   }
 
-  try {
-    const isOwner = await isDealOwner(user.id, dealId)
-    if (!isOwner) {
-      return { success: false, error: 'Только владелец сделки может отозвать доступ.' }
-    }
-  } catch (err) {
-    console.error('revokeExternalAccess: authority check failed', err)
-    return { success: false, error: 'Ошибка проверки прав доступа.' }
+  // --- Authority check: caller must be lead_advisor for this exact deal ---
+  const authResult = await verifyLeadAdvisorForDeal(user.id, validDealId)
+  if (!authResult.authorized) {
+    return { success: false, error: authResult.error }
   }
 
   const admin = createAdminClient()
@@ -406,8 +527,8 @@ export async function revokeExternalAccess(
       revoked_at: new Date().toISOString(),
       revoked_by: user.id,
     })
-    .eq('id', externalAccessId)
-    .eq('deal_id', dealId)
+    .eq('id', validAccessId)
+    .eq('deal_id', validDealId)
     .is('revoked_at', null)
     .select('id')
 
