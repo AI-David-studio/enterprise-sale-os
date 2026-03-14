@@ -134,7 +134,7 @@ async function isExternalPure(userId: string): Promise<boolean> {
 }
 
 /**
- * Cleanup a just-created auth user + profile on purity rejection.
+ * Cleanup a just-created auth user + profile.
  * Only call this for newly created users within the accept flow.
  */
 async function cleanupNewExternalUser(
@@ -145,6 +145,61 @@ async function cleanupNewExternalUser(
   try { await admin.from('users').delete().eq('id', userId) } catch { /* ignore */ }
   try { await supabase.auth.signOut() } catch { /* ignore */ }
   try { await admin.auth.admin.deleteUser(userId) } catch { /* ignore */ }
+}
+
+/**
+ * Convenience: cleanup newly created user (if applicable) and return an error result.
+ * Avoids repeating the if-new-cleanup pattern on every failure branch.
+ */
+async function failWithCleanup(
+  error: string,
+  isNewlyCreated: boolean,
+  userId: string,
+  supabase: Awaited<ReturnType<typeof createClient>>
+): Promise<ExternalInviteResult> {
+  if (isNewlyCreated) {
+    await cleanupNewExternalUser(userId, supabase)
+  }
+  return { success: false, error }
+}
+
+/**
+ * Checks if a target email already belongs to an internal principal.
+ * Returns true if the email is internal (has org or deal_members presence).
+ * Returns false if no profile exists or the profile is pure-external.
+ */
+async function isInternalEmail(email: string): Promise<boolean> {
+  const admin = createAdminClient()
+
+  const { data: profile, error: profileError } = await admin
+    .from('users')
+    .select('id, organization_id')
+    .eq('email', email)
+    .limit(1)
+    .maybeSingle()
+
+  if (profileError || !profile) {
+    return false // no profile = not internal (or fail open for invite creation)
+  }
+
+  // Internal if has org membership
+  if (profile.organization_id !== null) {
+    return true
+  }
+
+  // Internal if has deal_members presence
+  const { data: memberRow, error: memberError } = await admin
+    .from('deal_members')
+    .select('id')
+    .eq('user_id', profile.id)
+    .limit(1)
+    .maybeSingle()
+
+  if (memberError) {
+    return false // fail open for invite creation (acceptance will re-check)
+  }
+
+  return !!memberRow
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +250,15 @@ export async function createExternalInvite(
   const authResult = await verifyLeadAdvisorForDeal(user.id, validDealId)
   if (!authResult.authorized) {
     return { success: false, error: authResult.error }
+  }
+
+  // --- Fail-fast: reject invites to already-internal principals ---
+  const emailIsInternal = await isInternalEmail(email)
+  if (emailIsInternal) {
+    return {
+      success: false,
+      error: 'Этот email уже принадлежит внутреннему пользователю. Для внешнего доступа необходимо использовать другой email.',
+    }
   }
 
   const admin = createAdminClient()
@@ -415,7 +479,7 @@ export async function acceptExternalInvite(
 
   if (existingError) {
     console.error('acceptExternalInvite: existing access lookup failed', existingError)
-    return { success: false, error: 'Ошибка проверки доступа.' }
+    return await failWithCleanup('Ошибка проверки доступа.', isNewlyCreatedUser, userId!, supabase)
   }
 
   if (existing) {
@@ -444,11 +508,11 @@ export async function acceptExternalInvite(
     .select('id')
 
   if (inviteUpdateError) {
-    return { success: false, error: 'Ошибка обновления приглашения.' }
+    return await failWithCleanup('Ошибка обновления приглашения.', isNewlyCreatedUser, userId!, supabase)
   }
 
   if (!updatedRows || updatedRows.length === 0) {
-    return { success: false, error: 'Приглашение уже обработано.' }
+    return await failWithCleanup('Приглашение уже обработано.', isNewlyCreatedUser, userId!, supabase)
   }
 
   // --- Create external_access row (NOT deal_members) ---
@@ -476,7 +540,7 @@ export async function acceptExternalInvite(
     } catch { /* ignore cleanup error */ }
 
     console.error('acceptExternalInvite: external_access insert failed', accessError)
-    return { success: false, error: 'Ошибка создания внешнего доступа.' }
+    return await failWithCleanup('Ошибка создания внешнего доступа.', isNewlyCreatedUser, userId!, supabase)
   }
 
   return { success: true }
