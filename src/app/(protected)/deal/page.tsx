@@ -44,20 +44,25 @@ export default async function DealPage() {
   // Fetch external invites and active external access for the deal
   let externalInvites: { id: string; email: string; status: string; created_at: string; accepted_at: string | null; expires_at: string }[] = []
   let activeExternalAccess: { id: string; invited_email: string; created_at: string }[] = []
+  let externalReadError: string | null = null
 
   if (isLeadAdvisor && activeDeal?.id) {
-    const { data: invites } = await supabase
+    const { data: invites, error: invitesError } = await supabase
       .from('external_invites')
       .select('id, email, status, created_at, accepted_at, expires_at')
       .eq('deal_id', activeDeal.id)
       .order('created_at', { ascending: false })
 
-    const { data: access } = await supabase
+    const { data: access, error: accessError } = await supabase
       .from('external_access')
       .select('id, invited_email, created_at')
       .eq('deal_id', activeDeal.id)
       .is('revoked_at', null)
       .order('created_at', { ascending: false })
+
+    if (invitesError || accessError) {
+      externalReadError = 'Не удалось загрузить данные внешнего доступа. Обновите страницу.'
+    }
 
     externalInvites = invites || []
     activeExternalAccess = access || []
@@ -94,6 +99,7 @@ export default async function DealPage() {
           dealId={activeDeal.id}
           externalInvites={externalInvites}
           activeExternalAccess={activeExternalAccess}
+          externalReadError={externalReadError}
         />
       )}
     </div>

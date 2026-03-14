@@ -27,6 +27,7 @@ interface ExternalInviteSectionProps {
   dealId: string
   externalInvites: ExternalInvite[]
   activeExternalAccess: ExternalAccess[]
+  externalReadError?: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -56,6 +57,7 @@ export function ExternalInviteSection({
   dealId,
   externalInvites,
   activeExternalAccess,
+  externalReadError,
 }: ExternalInviteSectionProps) {
   const router = useRouter()
 
@@ -65,6 +67,7 @@ export function ExternalInviteSection({
   const [error, setError] = useState<string | null>(null)
   const [inviteLink, setInviteLink] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [copyError, setCopyError] = useState<string | null>(null)
 
   // --- Revoke state ---
   const [revokingId, setRevokingId] = useState<string | null>(null)
@@ -83,6 +86,7 @@ export function ExternalInviteSection({
       const result = await createExternalInvite(dealId, email)
       if (result.success && result.inviteLink) {
         setInviteLink(result.inviteLink)
+        setCopyError(null)
         setEmail('')
         router.refresh()
       } else {
@@ -101,9 +105,10 @@ export function ExternalInviteSection({
     try {
       await navigator.clipboard.writeText(inviteLink)
       setCopied(true)
+      setCopyError(null)
       setTimeout(() => setCopied(false), 2000)
     } catch {
-      // Fallback: user can select text manually
+      setCopyError('Не удалось скопировать ссылку. Скопируйте её вручную.')
     }
   }
 
@@ -142,6 +147,13 @@ export function ExternalInviteSection({
         </div>
       )}
 
+      {/* ---- READ ERROR ---- */}
+      {externalReadError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-md px-4 py-3 mb-4 text-sm">
+          {externalReadError}
+        </div>
+      )}
+
       {/* ---- SUCCESS: INVITE LINK ---- */}
       {inviteLink && (
         <div className="bg-green-50 border border-green-200 rounded-md px-4 py-3 mb-4">
@@ -165,6 +177,9 @@ export function ExternalInviteSection({
               {copied ? 'Скопировано!' : 'Копировать'}
             </button>
           </div>
+          {copyError && (
+            <p className="text-xs text-red-500 mt-1">{copyError}</p>
+          )}
         </div>
       )}
 
